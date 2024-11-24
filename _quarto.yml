@@ -6,11 +6,11 @@ execute:
   echo: true
 
 book:
-  title: "YOUR PROJECT TITLE"
+  title: "Biases in U.S. Elections Data"
   author:
-    - AUTHOR1 (UNI1)
-    - AUTHOR2 (UNI2)
-  repo-url: https://github.com/YOUR_GITHUB_ACCOUNT/REPO_NAME
+    - Marek Kampa (mk4300)
+    - Jingyang Wang (w4656)
+  repo-url: https://github.com/Karmpje/uninformed_elections
   date: today
   page-footer:
     right: |
