@@ -21,10 +21,15 @@ function populateSelectOptions(id, options) {
     });
 }
 
-populateSelectOptions("party-senate", partyOptions);
-populateSelectOptions("party-congress", partyOptions);
-populateSelectOptions("least-spent", spendingOptions);
-populateSelectOptions("party-select", partyOptions);
+document.addEventListener("DOMContentLoaded", function() {
+    const partyOptions = ["Select", "Democrats", "Republicans"];
+    const spendingOptions = ["Select", "Foreign aid", "Medicare", "National defense", "Social Security"];
+
+    populateSelectOptions("party-senate", partyOptions);
+    populateSelectOptions("party-congress", partyOptions);
+    populateSelectOptions("least-spent", spendingOptions);
+    populateSelectOptions("party-select", partyOptions);
+});
 
 d3.select("#submit-btn").on("click", function() {
     let results = [];
