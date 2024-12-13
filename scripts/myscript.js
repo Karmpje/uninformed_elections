@@ -13,9 +13,17 @@ const spendingOptions = ["Select", "Foreign aid", "Medicare", "National defense"
 
 function populateSelectOptions(id, options) {
     const selectElement = document.getElementById(id);
+
+    if (!selectElement) {
+        console.error(`Element with id '${id}' not found.`);
+        return;
+    }
+
+    selectElement.innerHTML = '';
+
     options.forEach(option => {
         const optionElement = document.createElement("option");
-        optionElement.value = option.toLowerCase();
+        optionElement.value = option;
         optionElement.textContent = option;
         selectElement.appendChild(optionElement);
     });
