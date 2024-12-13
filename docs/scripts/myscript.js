@@ -24,6 +24,7 @@ function populateSelectOptions(id, options) {
 populateSelectOptions("party-senate", partyOptions);
 populateSelectOptions("party-congress", partyOptions);
 populateSelectOptions("least-spent", spendingOptions);
+populateSelectOptions("party-select", partyOptions);
 
 d3.select("#submit-btn").on("click", function() {
     let results = [];
