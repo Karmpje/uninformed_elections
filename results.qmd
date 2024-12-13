@@ -14,7 +14,7 @@ library(forcats)
 library(usmap)
 ```
 
-## What is a better prediction metric: the highest level of attained education or the level Political Science Knowledge?
+## What is a better prediction metric: the highest level of attained education or the level of Political Science Knowledge?
 
 ```{r}
 # reading data
