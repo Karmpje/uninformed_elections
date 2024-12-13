@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>4&nbsp; Interactive graph – Biases in U.S. Elections Data</title>
+<title>4&nbsp; Interactive graph – Uninformation in the U.S. Elections Data</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -96,7 +96,7 @@ ul.task-list li input[type="checkbox"] {
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
     <div class="pt-lg-2 mt-2 text-left sidebar-header">
     <div class="sidebar-title mb-0 py-0">
-      <a href="./">Biases in U.S. Elections Data</a> 
+      <a href="./">Uninformation in the U.S. Elections Data</a> 
         <div class="sidebar-tools-main">
     <a href="https://github.com/Karmpje/uninformed_elections" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
 </div>
@@ -173,9 +173,85 @@ ul.task-list li input[type="checkbox"] {
   * {
     font-family: sans-serif;
   }
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 20px;
+  }
+  h1 {
+    color: #333;
+  }
+  .question {
+    margin-bottom: 20px;
+  }
+  .question label {
+    font-size: 18px;
+    font-weight: bold;
+  }
+  input[type="number"], select {
+    padding: 5px;
+    width: 200px;
+  }
+  button {
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  button:hover {
+    background-color: #45a049;
+  }
+  .result {
+    margin-top: 20px;
+    font-size: 20px;
+  }
+  #line-chart {
+    margin-top: 40px;
+    width: 100%;
+    height: 400px;
+  }
 </style>
 <div id="plot">
+<h1>
+US Government Quiz
+</h1>
+<div class="quiz-container">
+<pre><code>  &lt;div class="question"&gt;
+      &lt;label for="party-senate"&gt;1. Which party has the most members in Senate right now?&lt;/label&gt;
+      &lt;select id="party-senate"&gt;&lt;/select&gt;
+  &lt;/div&gt;
+  &lt;div class="question"&gt;
+      &lt;label for="party-congress"&gt;2. Which party has the most members in Congress right now?&lt;/label&gt;
+      &lt;select id="party-congress"&gt;&lt;/select&gt;
+  &lt;/div&gt;
+  &lt;div class="question"&gt;
+      &lt;label for="senator-term"&gt;3. How many years are there in one full term of a US Senator?&lt;/label&gt;
+      &lt;input type="number" id="senator-term" placeholder="Answer in number"&gt;
+  &lt;/div&gt;
+  &lt;div class="question"&gt;
+      &lt;label for="least-spent"&gt;4. On which program does the Federal Government spend the least?&lt;/label&gt;
+      &lt;select id="least-spent"&gt;&lt;/select&gt;
+  &lt;/div&gt;
+  &lt;div class="question"&gt;
+      &lt;label for="geer-case"&gt;5. When did the Supreme Court decide on Geer v. Connecticut?&lt;/label&gt;
+      &lt;input type="number" id="geer-case" placeholder="Answer in number"&gt;
+  &lt;/div&gt;
+  &lt;div class="question"&gt;
+      &lt;label for="party-select"&gt;What is your party affiliation? (Republicans or Democrats)&lt;/label&gt;
+      &lt;select id="party-select"&gt;
+          &lt;option value="" disabled selected&gt;Select your party&lt;/option&gt;
+          &lt;option value="republicans"&gt;Republicans&lt;/option&gt;
+          &lt;option value="democrats"&gt;Democrats&lt;/option&gt;
+      &lt;/select&gt;
+  &lt;/div&gt;
+  &lt;button id="submit-btn"&gt;Submit Answers&lt;/button&gt;
+  &lt;div class="result" id="result"&gt;&lt;/div&gt;</code></pre>
+</div>
+<div id="line-chart">
 
+</div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <script src="scripts/myscript.js"></script>
