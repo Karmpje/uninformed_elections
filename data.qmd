@@ -70,20 +70,19 @@ question_mapping <- c(
 )
 ```
 
-```{r}
+```{r, fig.width=10, fig.height=10}
 # missing data for pre-elections: proportions
 missing_df <- data.frame(variable = names(proportion_negative_nine_pre), 
                           missing_proportion = proportion_negative_nine_pre)
 missing_df_filtered <- missing_df[missing_df$missing_proportion > threshold, ]
 missing_df_filtered$variable_label <- question_mapping[missing_df_filtered$variable]
 
-ggplot(missing_df_filtered, aes(x = reorder(variable_label, -missing_proportion), y = missing_proportion)) +
+ggplot(missing_df_filtered, aes(y = reorder(variable_label, missing_proportion), x = missing_proportion)) +
   geom_bar(stat = "identity", fill = "blue") +
   labs(title = "Proportion of Missing Values in Pre-Election 2020 Data (Threshold > 2%)",
-       x = "Questions", y = "Missing Proportion") +
+       x = "Missing Proportion", y = "Questions") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1),
-        plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 The large amount of data makes it necessary to take a very selective approach when looking at missing values. For the purpose of this particular analysis, an emphasis is put on the questions in the pre-election data where the proportion of missing values is above 2%. This threshold was chosen somewhat arbitrarily, but it helps separate the clear outliers from the many questions with missing values within the 1% range.
 

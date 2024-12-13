@@ -4,9 +4,83 @@
   * {
     font-family: sans-serif;
   }
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 20px;
+  }
+  h1 {
+    color: #333;
+  }
+  .question {
+    margin-bottom: 20px;
+  }
+  .question label {
+    font-size: 18px;
+    font-weight: bold;
+  }
+  input[type="number"], select {
+    padding: 5px;
+    width: 200px;
+  }
+  button {
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  button:hover {
+    background-color: #45a049;
+  }
+  .result {
+    margin-top: 20px;
+    font-size: 20px;
+  }
+  #line-chart {
+    margin-top: 40px;
+    width: 100%;
+    height: 400px;
+  }
 </style> 
 
 <div id="plot">
+  <h1>US Government Quiz</h1>
+  <div class="quiz-container">
+      <div class="question">
+          <label for="party-senate">1. Which party has the most members in Senate right now?</label>
+          <select id="party-senate"></select>
+      </div>
+      <div class="question">
+          <label for="party-congress">2. Which party has the most members in Congress right now?</label>
+          <select id="party-congress"></select>
+      </div>
+      <div class="question">
+          <label for="senator-term">3. How many years are there in one full term of a US Senator?</label>
+          <input type="number" id="senator-term" placeholder="Answer in number">
+      </div>
+      <div class="question">
+          <label for="least-spent">4. On which program does the Federal Government spend the least?</label>
+          <select id="least-spent"></select>
+      </div>
+      <div class="question">
+          <label for="geer-case">5. When did the Supreme Court decide on Geer v. Connecticut?</label>
+          <input type="number" id="geer-case" placeholder="Answer in number">
+      </div>
+      <div class="question">
+          <label for="party-select">What is your party affiliation? (Republicans or Democrats)</label>
+          <select id="party-select">
+              <option value="" disabled selected>Select your party</option>
+              <option value="republicans">Republicans</option>
+              <option value="democrats">Democrats</option>
+          </select>
+      </div>
+      <button id="submit-btn">Submit Answers</button>
+      <div class="result" id="result"></div>
+  </div>
+
+  <div id="line-chart"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>

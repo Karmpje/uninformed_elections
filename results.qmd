@@ -1,1 +1,845 @@
 # Results
+
+```{r}
+# Setting up the environment
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(likert)
+library(RColorBrewer)
+library(vcd)
+library(ggalluvial)
+library(forcats)
+library(usmap)
+```
+
+## What is a better prediction metric: the highest level of attained education or the level Political Science Knowledge?
+
+```{r}
+# reading data
+df <- read_csv("data/raw/anes_timeseries_2020_csv_20220210.csv", show_col_types = FALSE)
+alluvials <- df |> dplyr::select(V200001,V201642,V201644,
+                                 V201645,V201646,V201647,V201075x)
+
+# data cleaning and preparation
+alluvials <- alluvials |> mutate(V201642 = ifelse(V201642 == 1896, 'Correct',
+                                                  ifelse(V201642 == -9, 'Incorrect',
+                                                         ifelse(V201642 == -5, 'dropped', 'Incorrect'))))
+
+alluvials <- alluvials |> mutate(V201644 = ifelse(V201644 == 6, 'Correct',
+                                                  ifelse(V201644 == -9, 'Incorrect',
+                                                         ifelse(V201644 == -5, 'dropped', 'Incorrect'))))
+
+alluvials <- alluvials |> mutate(V201645 = ifelse(V201645 == 1, 'Correct',
+                                                  ifelse(V201645 == -9, 'Incorrect',
+                                                         ifelse(V201645 == -5, 'dropped', 'Incorrect'))))
+
+alluvials <- alluvials |> mutate(V201646 = ifelse(V201646 == 1, 'Correct',
+                                                  ifelse(V201646 == -9, 'Incorrect',
+                                                         ifelse(V201646 == -5, 'dropped', 'Incorrect'))))
+
+alluvials <- alluvials |> mutate(V201647 = ifelse(V201647 == 2, 'Correct',
+                                                  ifelse(V201647 == -9, 'Incorrect',
+                                                         ifelse(V201647 == -5, 'dropped', 'Incorrect'))))
+
+alluvials <- alluvials |> mutate(V201075x = ifelse(V201075x %in% c(10, 20, 30), 'Democrat',
+                                                   ifelse(V201075x %in% c(11, 21, 31), 'Republican',
+                                                          ifelse(V201075x %in% c(12, 22, 32), 'Independent', 'Inapplicable'))))
+
+alluvials <- alluvials |> rowwise() |> 
+  mutate(
+    PolSciKnow = case_when(
+      sum(as.numeric(c_across(V201642:V201647) == "Correct")) >= 4 ~ "High",
+      sum(as.numeric(c_across(V201642:V201647) == "Correct")) < 3 ~ "Low",
+      TRUE ~ "Medium"
+    )
+  ) |> 
+  ungroup()
+
+alluvials <- alluvials |> mutate(Cheated = ifelse(V201642 == "Correct" & (PolSciKnow == "Low" | PolSciKnow == "Medium"), "Yes", "No"))
+
+alluvials_plot <- alluvials |>
+  group_by(V201642,V201644,V201645,V201646,V201647,V201075x,PolSciKnow) |>
+  summarize(Freq = n(), .groups = 'keep')
+
+
+# reducing dimensionality further
+alluvials_plot <- alluvials_plot |> filter(V201075x != "Inapplicable")
+alluvials_plot <- alluvials_plot |> filter(V201075x != "Independent")
+alluvials_plot <- alluvials_plot |> filter(V201642 != 'dropped')
+alluvials_plot <- alluvials_plot |> filter(V201644 != 'dropped')
+alluvials_plot <- alluvials_plot |> filter(V201645 != 'dropped')
+alluvials_plot <- alluvials_plot |> filter(V201646 != 'dropped')
+alluvials_plot <- alluvials_plot |> filter(V201647 != 'dropped')
+
+alluvials_plot <- alluvials_plot |> rowwise() |>
+  mutate(Proportion = Freq/sum(alluvials_plot$Freq))
+
+alluvials_plot$PolSciKnow <- factor(alluvials_plot$PolSciKnow, levels = c("High", "Medium", "Low"))
+```
+
+```{r, fig.width=16, fig.height=8}
+ggplot(alluvials_plot, aes(axis1=V201647, axis2 = V201646, axis3 = V201644, axis4 = V201645, axis5 = V201642, axis6 = PolSciKnow, y = Proportion)) +
+  geom_flow(aes(fill = V201075x), color = 'black') +
+  geom_stratum() + 
+  geom_text(stat = 'stratum', aes(label = paste(after_stat(stratum))), size = 3) +
+  scale_x_discrete(limits = c("Which party has the most\nmembers in Senate right now?",
+                              "Which party has the most\nmembers in Congress right now?",
+                              "How many years are there\nin one full term of a US Senator?",
+                              "On which program does the\nFederal Government spend the least?", 
+                              "When did the Supreme Court\ndecide on Geer v. Connecticut?",
+                              "Level of Political Science Knowledge"), name = "Results") +
+    labs(title = "Respondents' Performance on the Political Knowledge Catch Questions", fill = "Party Affiliation") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = c('Democrat' = "blue", 'Republican' = "red"))
+```
+
+To start tackling the first research question motivating this project with its search for cases of uninformation in the U.S. elections data, consider this alluvial chart summarizing the respondents' performance on the five political knowledge catch questions included in the questionnaire. Recall that the "hard" question (corresponding to the "When did the Supreme Court decide on Geer v. Connecticut?") was the item with the highest proportion of missing value; in other words, respondents were most likely not to answer it. This phenomenon is further emphasized here by the vast majority of respondents, among those who did attempt this question, providing an incorrect answer. Nevertheless, such a behavior was expected as one needs to exhibit legal knowledge prowess to know the correct answer!
+
+Alluvia (the horizontal 'lines') were colored in a way that tests for the association between the performance on this test and the respondent's party affiliation. The ordering of questions here does not match the ordering of these questions in the original questionnaire; for the sake of a simplified analysis, questions were organized here by their perceived difficulty according to the recorded answers. Finally, based on the number of correctly answered questions, the respondents fell into one of the categories--High (4 or more correct answers), Medium (exactly 3), or Low (2 or less)--representing their overall level of Political Science Knowledge. These boundaries were chosen in a way that condones missing the very hard Supreme Court question and still making it to the "High" category, while necessitating getting all the basics right (i.e., majorities in the House and Senate + length of term of US Senators) to score at the "Medium" level.
+
+As the questionnaire was filled by more respondents affiliated with the Democratic party, it is unsurprising that the proportion of Democrats falling into any category is slightly higher than the proportion of Republicans achieving the same result. Yet, even when one accounts for this small difference, the biggest disproportion seems to happen between the third and fourth question at the level of correct answers; here the proportion of Republicans answering both correctly seems to be much smaller than the proportion of Democrats. This might hint at the higher level of uninformation among Republicans regarding the the spendings of the Federal Government--an issue which usually ignites the public debate around the elections.
+
+Another problem seems to be revealed by the general performance on the third question, with almost 60% of respondents getting it wrong. In other words, 60% of respondents do not know the length of US senators' terms even though they are regularly asked to elect these officials into the office.
+
+On a separate note, this chart also exhibits the first instances of cheating on the questionnaire. This is illustrated with the small alluvia that manage to get the Supreme Court question correct, while not making it exclusively to the High category of Political Science Knowledge. It is extremely unlikely that somebody could correctly provide a year (or guess it) for this judicial case while failing to answer perceivably simpler questions. This could have happened if the person of concern has somehow cheated, e.g., by looking the answer up online.
+
+```{r}
+# data cleaning for Plot 2
+
+education_1 <- alluvials |> dplyr::select(V200001, V201075x, PolSciKnow, Cheated)
+education_2 <- df |> dplyr::select(V200001, V201001, V201600, V201005, V201006, V201007a, V201511x)
+education <- full_join(education_1, education_2, by = "V200001")
+
+
+education <- education |> mutate(V201001 = ifelse(V201001 == 1, "English", "Spanish"))
+
+education <- education |> mutate(V201600 = ifelse(V201600 == 1, "M",
+                                                  ifelse(V201600 == 2, "F", 0)))
+
+education <- education |> mutate(V201005 = ifelse(V201005 == 1, "Always",
+                                                  ifelse(V201005 == 2, "Often",
+                                                         ifelse(V201005 == 3, "Sometimes",
+                                                                ifelse(V201005 == 4, "Rarely",
+                                                                       ifelse(V201005 == 5, "Never", 0))))))
+
+education <- education |> mutate(V201006 = ifelse(V201006 == 1, "Very much interested",
+                                                  ifelse(V201006 == 2, "Somewhat interested",
+                                                         ifelse(V201006 == 3, "Not much interested", 0))))
+
+education <- education |> mutate(V201007a = ifelse(V201007a == 1, 
+                                                   "Democrat first, Republican second",
+                                                   "Republican first, Democrat second"))
+
+education <- education |> mutate(V201511x = ifelse(V201511x == 1, "Grade School",
+                                                   ifelse(V201511x == 2, "High School",
+                                                          ifelse(V201511x == 3, "Some College",
+                                                                 ifelse(V201511x == 4, "Bachelor's Degree",
+                                                                        ifelse(V201511x == 5, "Graduate degree", 0))))))
+
+
+education <- education |> filter(V201075x != "Inapplicable")
+education <- education |> filter(V201075x != "Independent")
+education <- education |> filter(V201600 != 0)
+education <- education |> filter(V201005 != 0)
+education <- education |> filter(V201006 != 0)
+education <- education |> filter(V201511x != 0)
+
+education$V201075x <- factor(education$V201075x, levels=c("Democrat","Republican"))
+education$PolSciKnow <- factor(education$PolSciKnow, levels=c("High","Medium","Low"))
+education$Cheated <- factor(education$Cheated, levels=c("Yes","No"))
+education$V201001 <- factor(education$V201001, levels=c("English","Spanish"))
+education$V201600 <- factor(education$V201600, levels=c("F","M"))
+education$V201005 <- factor(education$V201005, levels=c("Always","Often","Sometimes","Rarely","Never"))
+education$V201006 <- factor(education$V201006, levels=c("Very much interested",
+                                                        "Somewhat interested","Not much interested"))
+education$V201007a <- factor(education$V201007a, levels=c("Democrat first, Republican second",
+                                                          "Republican first, Democrat second"))
+education$V201511x <- factor(education$V201511x, levels=c("Grade School","High School","Some College",
+                                                          "Bachelor's Degree","Graduate degree"))
+
+names(education)[2] <- "Party"
+names(education)[3] <- "PolSci_Knowledge"
+names(education)[6] <- "Sex"
+names(education)[10] <- "Education"
+```
+
+```{r, fig.width=13, fig.height=7}
+mosaic(~ Party + Education + Sex + PolSci_Knowledge,
+       data = education,
+       direction =c("h", "v", "v", "h"),
+       highlighting = "PolSci_Knowledge",
+       main = "Association between the level of Political Science Knowledge and Respondent's Education")
+```
+
+To relate the level of Political Science Knowledge to Respondent's Education, consider this Mosaic Plot which visually tests for the association (correlation) between these two variables. If they were unrelated, the horizontal cuts splitting the bars would happen more less at the same level throughout the entire plot. Clearly, this is not the case.
+
+The immediate conclusion is that the level of Political Science Knowledge, whose computation was illustrated in the previous chart, is positively correlated with Respondent's education; the higher one's highest attained educational level is, the higher probability that this person would be classified as having a High level of Political Science Knowledge. Moreover, this approach fixes the problem of unequal proportions of Democrats and Republicans answering the questionnaire that blemished the previous plot. The height of the lightest gray bars corresponding to the High Political Science Knowledge is almost always bigger for Democrats than for Republicans at any given educational level. The structure of the plot also exhibits that while almost half of Democrats attempting the questionnaire holds at least a Bachelor's degree, the proportion of Republicans with the same qualifications is much smaller.
+
+Generally speaking, there is also such a lightest gray bar difference between males and females with similar level of education. Interestingly, the proportion of better educated females with High Political Science Knowledge is almost always the same as the proportion of worse educated males with High Political Science Knowledge up until the completion of undergraduate studies, where one extra attained level of education does not allow females to catch up with males in terms of their Political Science Knowledge. This is represented by the big jumps between F and M categories belonging to different Education levels (considered exactly in the order presented in this sentence) that start becoming prevalent from Bachelor's degree onward. Unfortunately, such a trend hints at a sex-driven uninformation bias.
+
+Moving forward, the results illustrated in this Mosaic Plot suggest that it might be worth focusing on the level of Respondents' Political Science Knowledge rather than just their highest level of attained education to uncover more data trends. The proportion of Respondents with university degrees not being able to correctly answer basic questions on the US government is simply too high to believe that a higher level of education might proof a given Respondent from uninformation. In other words, and quite sadly, there is no one-to-one mapping between a university degree and at least a basic (medium or high) level of knowledge on the US politics.
+
+## Who is the best informed then, if not the university-educated ones?
+
+```{r}
+winners_1 <- alluvials |> dplyr::select(V200001, V201075x, PolSciKnow, Cheated)
+winners_2 <- df |> dplyr::select(V200001, V201217, V201219, V201237, V201014b)
+winners <- full_join(winners_1, winners_2, by = "V200001")
+
+winners <- winners |> filter(V201014b != -9 & V201014b != -8 & V201014b != -1 & V201014b != 86)
+
+state_labels <- c(
+  "Alabama" = 1, "Alaska" = 2, "Arizona" = 4, "Arkansas" = 5, "California" = 6,
+  "Colorado" = 8, "Connecticut" = 9, "Delaware" = 10, "DC" = 11,
+  "Florida" = 12, "Georgia" = 13, "Hawaii" = 15, "Idaho" = 16, "Illinois" = 17,
+  "Indiana" = 18, "Iowa" = 19, "Kansas" = 20, "Kentucky" = 21, "Louisiana" = 22,
+  "Maine" = 23, "Maryland" = 24, "Massachusetts" = 25, "Michigan" = 26,
+  "Minnesota" = 27, "Mississippi" = 28, "Missouri" = 29, "Montana" = 30,
+  "Nebraska" = 31, "Nevada" = 32, "New Hampshire" = 33, "New Jersey" = 34,
+  "New Mexico" = 35, "New York" = 36, "North Carolina" = 37, "North Dakota" = 38,
+  "Ohio" = 39, "Oklahoma" = 40, "Oregon" = 41, "Pennsylvania" = 42,
+  "Rhode Island" = 44, "South Carolina" = 45, "South Dakota" = 46,
+  "Tennessee" = 47, "Texas" = 48, "Utah" = 49, "Vermont" = 50,
+  "Virginia" = 51, "Washington" = 53, "West Virginia" = 54,
+  "Wisconsin" = 55, "Wyoming" = 56
+)
+state_labels <- setNames(names(state_labels), state_labels)
+label_states <- function(state_id) {
+  state_labels[as.character(state_id)]
+}
+
+winners <- winners |>
+  mutate(V201014b = label_states(V201014b))
+
+winners <- winners |> filter(V201217 != -9 & V201217  != -8 & V201217  != 5)
+winners <- winners |> mutate(V201217 = ifelse(V201217 == 1, "Joe Biden", "Donald Trump"))
+winners$V201217 <- factor(winners$V201217, levels=c("Donald Trump","Joe Biden"))
+
+winners <- winners |> filter(V201219 != -9 & V201219 != -8 & V201219 != 5)
+winners <- winners |> mutate(V201219 = ifelse(V201219 == 1, "Joe Biden", "Donald Trump"))
+winners$V201219 <- factor(winners$V201219, levels=c("Donald Trump","Joe Biden"))
+
+winners <- winners |> filter(V201237 != -9 & V201237 != -8)
+winners <- winners |> mutate(V201237 = ifelse(V201237 == 1, "Always", 
+                                              ifelse(V201237 == 2, "Usually",
+                                                     ifelse(V201237 == 3, "Sometimes",
+                                                            ifelse(V201237 == 4, "Rarely", "Never")))))
+winners$V201237 <- factor(winners$V201237, levels=c("Always","Usually", "Sometimes", "Rarely", "Never"))
+
+winners <- winners |> filter(V201075x == "Democrat" | V201075x == "Republican")
+winners <- winners |> mutate(V201075x = ifelse(V201075x == "Democrat", "Joe Biden", "Donald Trump"))
+
+state_winners_S <- winners |> group_by(V201014b) |>
+  summarize(Winner = names(which.max(table(V201217)))) |> ungroup()
+
+state_winners_O <- winners |> group_by(V201014b) |>
+  summarize(Winner = names(which.max(table(V201219)))) |> ungroup()
+
+state_winners_V <- winners |> group_by(V201014b) |>
+  summarize(Winner = names(which.max(table(V201075x)))) |> ungroup()
+
+state_winners_S <- state_winners_S |>
+  mutate(state = tolower(V201014b))
+
+state_winners_O <- state_winners_O |>
+  mutate(state = tolower(V201014b))
+
+state_winners_V <- state_winners_V |>
+  mutate(state = tolower(V201014b))
+
+state_winners_A <- state_winners_O |>
+  mutate(Winner = c("Donald Trump","Donald Trump","Joe Biden","Donald Trump","Joe Biden",
+                    "Joe Biden","Joe Biden","Joe Biden","Joe Biden","Donald Trump",
+                    "Joe Biden","Joe Biden","Donald Trump","Joe Biden","Donald Trump",
+                    "Donald Trump","Donald Trump","Donald Trump","Donald Trump","Joe Biden",
+                    "Joe Biden","Joe Biden","Joe Biden","Joe Biden","Donald Trump",
+                    "Donald Trump","Donald Trump","Donald Trump","Joe Biden","Joe Biden",
+                    "Joe Biden","Joe Biden","Joe Biden","Donald Trump","Donald Trump",
+                    "Donald Trump","Donald Trump","Joe Biden","Joe Biden","Joe Biden",
+                    "Donald Trump","Donald Trump","Donald Trump","Donald Trump","Donald Trump",
+                    "Joe Biden","Joe Biden","Joe Biden","Donald Trump","Joe Biden",
+                    "Donald Trump"))
+```
+
+```{r}
+S <- plot_usmap(data = state_winners_S, values = "Winner") +
+  scale_fill_manual(
+    values = c("Donald Trump" = "red", "Joe Biden" = "blue"),  # Set fill colors
+    name = "Winner"
+  ) +
+  labs(
+    title = "Aggregated Individual Opinions",
+  ) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "right")
+
+O <- plot_usmap(data = state_winners_O, values = "Winner") +
+  scale_fill_manual(
+    values = c("Donald Trump" = "red", "Joe Biden" = "blue"),  # Set fill colors
+    name = "Winner"
+  ) +
+  labs(
+    title = "Aggregated Individual Opinions\non the State Winners",
+  ) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "right")
+
+V <- plot_usmap(data = state_winners_V, values = "Winner") +
+  scale_fill_manual(
+    values = c("Donald Trump" = "red", "Joe Biden" = "blue"),  # Set fill colors
+    name = "Winner"
+  ) +
+  labs(
+    title = "Aggregated Vote Counts in the Sample",
+  ) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "right")
+
+A <- plot_usmap(data = state_winners_A, values = "Winner") +
+  scale_fill_manual(
+    values = c("Donald Trump" = "red", "Joe Biden" = "blue"),  # Set fill colors
+    name = "Winner"
+  ) +
+  labs(
+    title = "Official Results",
+  ) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "right")
+
+(S + V) / (O + A) + plot_layout(guides = "collect") +
+  plot_annotation(title = "Election Winner per...") & 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+These four maps call the 2020 Presidential Election race based on:
+
+-   Aggregated Individual Opinions, i.e., the winner is called based on what the majority of Respondents think on who the winner will be on the national level.
+
+-   Aggregated Vote Counts in the Sample, i.e., the winner is called based on the most prevalent political affiliation of Respondents per state.
+
+-   Aggregated Individual Opinions on the State Winners, i.e., the winner is called based on what the majority of Respondents think on who the winner will on the state level.
+
+-   Official Results, i.e., the actual results of the 2020 Presidential Election race, which were NOT available at the time when Respondents attempted this survey.
+
+Now, if these maps were to be ordered in terms of predictive power, the least powerful would be just choosing the winner based on the political affiliation of the majority of Respondents attempting the questionnaire in a given state, followed by the aggregated opinions on the winner at the national level, and topped with the aggregated opinions on the winner at the state level. This ordering can be constructed based on the number of states that are called incorrectly in relation to the actual winner depicted on the bottom-right map. 
+Somehow, the survey was answered predominantly by Democrats in the Mid-West region, which tipped the scales in favor of Joe Biden in states where it should have not (top-right map), while some of these did not believe in Joe Biden's win at the country level (top-left map). Nevertheless, when asked about who the winner will be locally, the problem of Mid-West is resolved, Rhode Island turns blue while Florida and Wyoming turn red, and only Arizona and Georgia--the two closest races--are still incorrectly called.
+
+Conclusion: trust your gut feelings about your neighbors. You might be the most informed and unbiased on who those around you might be like, which, if aggregated, becomes extremely powerful in terms of predictive power.
+
+## What about the strength of constitution ... of Respondents' decisions? Or, how influenceable are the Respondents?
+
+```{r}
+voting_cd_1 <- alluvials |> dplyr::select(V200001, V201075x, PolSciKnow)
+voting_cd_2 <- df |> dplyr::select(V200001, V201221, V201222, V201225x)
+voting_cd <- full_join(voting_cd_1, voting_cd_2, by = "V200001")
+
+voting_cd <- voting_cd |> filter(V201221 != -9)
+voting_cd <- voting_cd |> mutate(V201221 = ifelse(V201221 == 1, "Mainly a duty",
+                                                  ifelse(V201221 == 2, "Mainly a choice",
+                                                         ifelse(V201221 == 3, "Neither a duty nor a choice", 0))))
+
+voting_cd <- voting_cd |> filter(V201222 != -9)
+voting_cd <- voting_cd |> mutate(V201222 = ifelse(V201222 == 1, "Mainly a choice",
+                                                  ifelse(V201222 == 2, "Mainly a duty",
+                                                         ifelse(V201222 == 3, "Neither a duty nor a choice", 0))))
+
+voting_cd <- voting_cd |> filter(V201225x != -2)
+voting_cd <- voting_cd |> mutate(V201225x = ifelse(V201225x == 1, "Very strongly a duty",
+                                                   ifelse(V201225x == 2, "Strongly a duty",
+                                                          ifelse(V201225x == 3, "Moderately a duty",
+                                                                 ifelse(V201225x == 4, "Neutral",
+                                                                        ifelse(V201225x == 5, "Moderately a choice",
+                                                                               ifelse(V201225x == 6, "Strongly a choice", "Very strongly a choice")))))))
+
+voting_cd$V201225x <- factor(voting_cd$V201225x, levels = c("Very strongly a duty","Strongly a duty",
+                                                            "Moderately a duty","Neutral","Moderately a choice",
+                                                            "Strongly a choice", "Very strongly a choice"))
+
+voting_cd <- voting_cd |> mutate(V201075x = ifelse(V201075x == "Inapplicable", "Undeclared", V201075x))
+voting_cd$V201075x <- factor(voting_cd$V201075x, levels = c("Undeclared", "Independent", "Republican","Democrat"))
+voting_cd$PolSciKnow <- factor(voting_cd$PolSciKnow, levels = c("High", "Medium", "Low"))
+
+voting_cd_group1 <- voting_cd |> filter(V201221 != 0)
+voting_cd_group1 <- voting_cd_group1 |> dplyr::select(V200001, V201075x, PolSciKnow, V201221, V201225x)
+
+voting_cd_group2 <- voting_cd |> filter(V201222 != 0)
+voting_cd_group2 <- voting_cd_group2 |> dplyr::select(V200001, V201075x, PolSciKnow, V201222, V201225x)
+```
+
+```{r, fig.width=10, fig.height=8}
+diverging_colors_7 <- brewer.pal(7, "BrBG")
+
+dfcs <- ggplot(voting_cd_group1, aes(x = V201075x, fill=V201225x)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~PolSciKnow, ncol = 1) +
+  scale_fill_manual(values = diverging_colors_7) +
+  labs(subtitle="Duty First, Choice Second", fill = "Response") +
+  theme(plot.subtitle = element_text(hjust = 0.5)) +
+  coord_flip()
+
+cfds <- ggplot(voting_cd_group2, aes(x = V201075x, fill=V201225x)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~PolSciKnow, ncol=1) +
+  scale_fill_manual(values = diverging_colors_7) +
+  labs(subtitle="Choice First, Duty Second", fill = "Response") +
+  theme(plot.subtitle = element_text(hjust = 0.5)) +
+  coord_flip()
+
+(dfcs + cfds) + plot_layout(guides = "collect", axis_title="collect") +
+  plot_annotation(title = "Is Voting a ... or a ...?", subtitle = "The Impact of Leading Questions by Political Science Knowledge") &
+  labs(x = "Political Affiliation", y = "Proportion") &
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
+```
+
+On several occasions the questionnaire was equally spliced into two different versions so as to test for the impact of the so-called leading question on the Respondents' answers. In social sciences, leading questions arise when an inherent ordering associated with a question suggests the answer (usually the one appearing first), which is directly linked to the reading direction in a given language (i.e., as in English one reads left to right, the part of the question to the leftmost of the sentence is hypothesized to be the most suggestive of the answer). Here, consider an example of a leading question on the nature of voting.
+
+Unsurprisingly, the majority of Americans believe that voting is a duty (hues of brown). Nevertheless, these results are inconsistent when faceted by the ordering (total length of brown bars on the left compared to the right), which suggests that the structure of a question did have an impact on the Respondent's answer, even when one controls for the level of Political Science Knowledge. For example, Democrats with a High level of Political Science Knowledge were less likely to consider voting a duty if "choice" appeared first in the question. Republicans in the same category were more consistent. At the same time, Independents and Undeclared were more likely to be equally split between the two options, but as there were significantly less individuals falling into either of these groups, the general results are not as robust as they are for the main two parties.
+
+Respondents with a Medium or Low level of Political Science Knowledge seem to consider voting less of a duty and more of a choice, which is consistent with the assumption that education might make one more politically inclined (which was also illustrated on the Mosaic Plot before). Interestingly, while it still persists, the impact of the leading question was less pronounced in these two groups, which is generally not what one would have expected. A possible explanation is that people falling into the High Political Science Knowledge group might have been overthinking the answer, with a decision being eventually implicitly influenced by the ordering of terms in the question, while those with Medium or Low levels answered whatever they thought of first, with questionnaire's "persuasive technique" not getting enough time to start working out.
+
+## Who is more likely to lose it to emotions?
+
+```{r}
+emotions_1 <- alluvials |> dplyr::select(V200001, V201075x, PolSciKnow)
+emotions_2 <- df |> dplyr::select(V200001, V201115, V201116, V201117, V201117, V201118, V201119, V201120, V201121, V201122, V201123)
+emotions <- full_join(emotions_1, emotions_2, by = "V200001")
+
+emotions <- emotions |> filter (V201115 != -9 & V201115 !=-8)
+emotions <- emotions |> filter (V201116 != -9 & V201116 !=-8)
+emotions <- emotions |> filter (V201117 != -9 & V201117 !=-8)
+emotions <- emotions |> filter (V201118 != -9 & V201118 !=-8)
+emotions <- emotions |> filter (V201119 != -9 & V201119 !=-8)
+emotions <- emotions |> filter (V201120 != -9 & V201120 !=-8)
+emotions <- emotions |> filter (V201121 != -9 & V201121 !=-8)
+emotions <- emotions |> filter (V201122 != -9 & V201122 !=-8)
+emotions <- emotions |> filter (V201123 != -9 & V201123 !=-8)
+
+emotions <- emotions |> mutate(V201115 = ifelse(V201115 == 1, "Not at all",
+                                                   ifelse(V201115 == 2, "A little",
+                                                          ifelse(V201115 == 3, "Somewhat",
+                                                                 ifelse(V201115 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201116 = ifelse(V201116 == 1, "Not at all",
+                                                   ifelse(V201116 == 2, "A little",
+                                                          ifelse(V201116 == 3, "Somewhat",
+                                                                 ifelse(V201116 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201117 = ifelse(V201117 == 1, "Not at all",
+                                                   ifelse(V201117 == 2, "A little",
+                                                          ifelse(V201117 == 3, "Somewhat",
+                                                                 ifelse(V201117 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201118 = ifelse(V201118 == 1, "Not at all",
+                                                   ifelse(V201118 == 2, "A little",
+                                                          ifelse(V201118 == 3, "Somewhat",
+                                                                 ifelse(V201118 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201119 = ifelse(V201119 == 1, "Not at all",
+                                                   ifelse(V201119 == 2, "A little",
+                                                          ifelse(V201119 == 3, "Somewhat",
+                                                                 ifelse(V201119 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201120 = ifelse(V201120 == 1, "Not at all",
+                                                   ifelse(V201120 == 2, "A little",
+                                                          ifelse(V201120 == 3, "Somewhat",
+                                                                 ifelse(V201120 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201121 = ifelse(V201121 == 1, "Not at all",
+                                                   ifelse(V201121 == 2, "A little",
+                                                          ifelse(V201121 == 3, "Somewhat",
+                                                                 ifelse(V201121 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201122 = ifelse(V201122 == 1, "Not at all",
+                                                   ifelse(V201122 == 2, "A little",
+                                                          ifelse(V201122 == 3, "Somewhat",
+                                                                 ifelse(V201122 == 4, "Very", "Extremely")))))
+
+emotions <- emotions |> mutate(V201123 = ifelse(V201123 == 1, "Not at all",
+                                                   ifelse(V201123 == 2, "A little",
+                                                          ifelse(V201123 == 3, "Somewhat",
+                                                                 ifelse(V201123 == 4, "Very", "Extremely")))))
+
+emotions <- emotions|> mutate(V201075x = ifelse(V201075x == "Inapplicable", "Undeclared", V201075x))
+emotions$V201075x <- factor(emotions$V201075x, levels = c("Democrat", "Republican", "Independent","Undeclared"))
+
+emotion_scale = as.factor(c("Not at all", "A little", "Somewhat", "Very", "Extremely"))
+emotions <- emotions |> mutate(across(c(4:12), ~ factor(.x, levels = emotion_scale)))
+gradual_colors <- brewer.pal(5, "Greens")
+
+names(emotions)[4] <- "hopeful"
+names(emotions)[5] <- "afraid"
+names(emotions)[6] <- "outraged"
+names(emotions)[7] <- "angry"
+names(emotions)[8] <- "happy"
+names(emotions)[9] <- "proud"
+names(emotions)[10] <- "worried"
+names(emotions)[11] <- "irritated"
+names(emotions)[12] <- "nervous"
+
+emotions_long <- emotions |> pivot_longer(cols = 4:12, names_to = "Emotion", values_to = "Strength")
+```
+
+```{r}
+ggplot(emotions_long, aes(x = Emotion, fill = Strength)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values = gradual_colors) +
+  labs(title="How ... do you feel about how things are going in the country?",
+       fill = "Response", y = "Proportion") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+```
+
+Heated elections are almost guaranteed to directly translate to emotional choices. Consider first the general distribution of emotions in the population of Respondents who have attempted the questionnaire. The two most striking conclusions are that there are not many people who were either extremely worried or extremely happy about how things were going in the United States before the 2020 elections, which might have reflected the "business as usual" attitude. Almost any other emotion (except for hopeful) represented a roughly equal split among all the possible response categories. Were people falling into any of these groups predicting what was about to happen in November 2020?
+
+```{r, fig.width=20, fig.height=8}
+emotions_long_high <- emotions_long |> filter(PolSciKnow == "High")
+
+high <- ggplot(emotions_long_high, aes(x = Emotion, fill = Strength)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~V201075x, nrow=1) +
+  scale_fill_manual(values = gradual_colors) +
+  labs(title = "High Level of Political Science Knowledge", fill = "Response", y = "Proportion") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+
+emotions_long_mid <- emotions_long |> filter(PolSciKnow == "Medium")
+
+mid <- ggplot(emotions_long_mid, aes(x = Emotion, fill = Strength)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~V201075x, nrow=1) +
+  scale_fill_manual(values = gradual_colors) +
+  labs(title = "Medium Level of Political Science Knowledge", fill = "Response", y = "Proportion") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+
+emotions_long_low <- emotions_long |> filter(PolSciKnow == "Low")
+
+low <- ggplot(emotions_long_low, aes(x = Emotion, fill = Strength)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~V201075x, nrow=1) +
+  scale_fill_manual(values = gradual_colors) +
+  labs(title = "Low Level of Political Science Knowledge", fill = "Response", y = "Proportion") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()
+
+(high / mid / low) + plot_layout(guides = "collect", axis_title="collect") +
+  plot_annotation(title = "How ... do you feel about how things are going in the country?\n Grouped by Political Science Knowledge") &
+  labs(x = "Emotion", y = "Proportion") &
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+It is very much possible! The number of High Political Science Knowledge Democrats being extremely worried was significantly smaller than the number of High Political Science Knowledge Republicans exhibiting extreme worry. Did they know that Joe Biden was to be the called as winner? Unfortunately, this cannot be inferred, but compared to the proportion of Democrats expressing extreme happiness or hopefulness, the proportion of extreme worry does not seem to be awry, especially when compared to the general distributions in the previous graph. Nevertheless, Democrats were much more likely to more strongly express negative emotions (nervous, irritated, outraged) compared to Republicans which seemed to have been more toned in all categories. In other words, while there might have been a light at the end of the tunnel (or the campaign), High Political Science Knowledge Democrats were prevalently dissatisfied with how things were going in the country, compared to the same group of Republicans.
+
+For those falling into the Medium or Low Political Science Knowledge category, the trends seem to change only slightly. That is, Democrats are more pronounced about the negative emotions (especially nervousness), while Republicans appear as balanced as they were before. This could hint at the level of worriness being linked to the outcome of the elections, but more targetted analysis would have to be done to confirm such a possibility. For Independents and Undeclared, the trends also appear the same across all different levels of Political Science Knowledge.
+
+Most importantly, and generally speaking, there seems to be little association between experienced emotions and the level of Political Science Knowledge. In other words, to feel things--and to report it--is to live a life of a human, which was the case for all the Respondents.
+
+```{r}
+positive_emotions <- c("hopeful", "happy", "proud") 
+negative_emotions <- c("afraid", "outraged", "angry", "worried", "irritated", "nervous")
+
+positive_emotions_scores <- c("Extremely" = 4, "Very" = 3, "Somewhat" = 2, "A little" = 1, "Not at all" = 0)
+negative_emotions_scores <- c("Extremely" = -4, "Very" = -3, "Somewhat" = -2, "A little" = -1, "Not at all" = 0)
+
+emotions_votes <- emotions
+
+emotions_votes <- emotions_votes |>
+  mutate(across(
+    all_of(positive_emotions), 
+    ~ positive_emotions_scores[.x]
+  )) |>
+  mutate(across(
+    all_of(negative_emotions), 
+    ~ negative_emotions_scores[.x]
+  )) |>
+  rowwise() |>
+  mutate(
+    Positive_Score = sum(c_across(all_of(positive_emotions)), na.rm = TRUE),
+    Negative_Score = sum(c_across(all_of(negative_emotions)), na.rm = TRUE),
+    Total_Score = Positive_Score + Negative_Score
+  ) |>
+  ungroup()
+
+emotions_votes <- emotions_votes |> dplyr::select(V200001, V201075x, PolSciKnow, Total_Score)
+winners_emotions <- winners |> dplyr::select(V200001, V201217)
+emotions_votes <- full_join(emotions_votes, winners_emotions, by='V200001')
+emotions_votes <- emotions_votes |> drop_na()
+
+emotions_votes <- emotions_votes |> mutate(Match = ifelse(V201075x == "Republican" & V201217 == "Donald Trump", "Expectation v. Prediction Convergence",
+                                           ifelse(V201075x == "Republican" & V201217 == "Joe Biden", "Expectation v. Prediction Divergence",
+                                                 ifelse(V201075x == "Democrat" & V201217 == "Donald Trump", "Expectation v. Prediction Divergence", "Expectation v. Prediction Convergence"))))
+
+emotions_democrats <- emotions_votes |> filter(V201075x == "Democrat")
+emotions_republicans <- emotions_votes |> filter(V201075x == "Republican")
+```
+
+```{r,fig.width=7, fig.height=7}
+e_d <- ggplot(emotions_democrats, aes(x=Total_Score)) +
+  geom_histogram(bins = 24, binwidth = 1, fill = "blue", color = "black", alpha = 0.33) +
+  facet_wrap(~Match, ncol=1, scales = "free_y") +
+  labs(title = "Democrats")
+
+e_r <- ggplot(emotions_republicans, aes(x=Total_Score)) +
+  geom_histogram(bins = 24, binwidth = 1, fill = "red", color = "black", alpha = 0.33) +
+  geom_density() +
+  facet_wrap(~Match, ncol=1, scales = "free_y") +
+  labs(title = "Republicans")
+
+(e_d + e_r) + plot_layout(guides = "collect", axis_title="collect") +
+  plot_annotation(title = "Position on the Emotional Spectrum by Party Affiliation\nand Relation between Respondent's Expectations and Predictions") &
+  labs(x = "Emotional Spectrum Score", y = "Count") &
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+As there seems to be a difference between the emotions reported by Democrat-voting and Republican-voting Respondents, a natural next step is to test for any association in the balance between positive and negative emotions and the "gut" feelings about the winner. In short, is there a difference in distribution of emotional spectrum scores when faceted by the mismatch between the expectation and prediction on the 2020 Presidential election winner.
+
+First, a note on methodology. The emotional spectrum score was calculated by contrasting the scope of a positive push of positive emotions (happy, hopeful, proud) and a negative push of the remaining negative emotions (worried, outraged, nervous, irritated, angry, afraid). Expectation references a winner which is compliant with one's party affiliation, while prediction references a winner which is called based on what one thinks on who the winner will be at the national level. Thus, convergence means that there is a match between the two, and divergence means that there is a mismatch (e.g., a Republican thinks Joe Biden will win). Do these groups behave differently? YES!
+
+Beyond the typical Democrat-Republican divide, which is additionally strengthened by a different distribution of emotional spectrum scores, the Kolmogorov-Smirnov tests point out a significant difference between the in-party groups.
+
+```{r}
+d_convergence <- emotions_democrats |> filter(Match == "Expectation v. Prediction Convergence") |> dplyr::select(Total_Score)
+d_convergence <- d_convergence[['Total_Score']]
+d_divergence <- emotions_democrats |> filter(Match == "Expectation v. Prediction Divergence") |> dplyr::select(Total_Score)
+d_divergence <- d_divergence[['Total_Score']]
+
+r_convergence <- emotions_republicans |> filter(Match == "Expectation v. Prediction Convergence") |> dplyr::select(Total_Score)
+r_convergence <- r_convergence[['Total_Score']]
+r_divergence <- emotions_republicans |> filter(Match == "Expectation v. Prediction Divergence") |> dplyr::select(Total_Score)
+r_divergence <- r_divergence[['Total_Score']]
+
+ks.test(d_convergence,d_divergence)
+ks.test(r_convergence,r_divergence)
+```
+
+In plain English, the results say that Democrats falling into the Divergence group are significantly different from Democrats falling into the Convergence group, while for Republicans there is not enough evidence to conclude a difference between the Divergence and Convergence group. Working out these results backwards, confirms the findings from the previous plot, where Republicans were reported to be quite balanced emotionally. On the other hand, Democrats who fear that Joe Biden might lose tend to report more negative emotions than Democrats who think that Joe Biden will win (it is reflected by the peak around the score of -8). The violation of normality in the case of Democrats comes from the smaller number of Respondents affiliated with this party reporting positive emotions in general, while the maintenance of normality for Republicans also testifies to their perceived emotional balance.
+
+Two more takeaways worth further consideration: 1) the mean of any distribution above is negative, which means that Respondents are generally more likely to experience negative emotions more frequently than positive ones; 2) thinking about the events of January 2021 that happened on the Capitol Hill, it is a bit surprising to find exactly the opposite trend in the data, i.e., that Democrats facing unmet expectations are predicted to behave differently. Is it why nobody could predict the invasion of the Capitol building? 
+
+Or, perhaps, different events speak to different emotions of Democrats and Republicans, triggering a different scope of reactions (say, experiencing a rise in negative emotions vs. starting an insurgency). However, the former might be a bit more easily influenceable if a vision of a losing Democrat candidate is successfully implanted in their minds.
+
+## What do the biases of the Political Compass say about the American Voters?
+
+```{r}
+political_spectrum_1 <- alluvials |> dplyr::select(V200001, V201075x, PolSciKnow)
+political_spectrum_2 <- df |> dplyr::select(V200001, V201200, V201201, V201202, V201203)
+
+political_spectrum <- full_join(political_spectrum_1, political_spectrum_2, by='V200001')
+
+political_spectrum <- political_spectrum |> filter(V201200 != -9 & V201200 != -8)
+political_spectrum <- political_spectrum |> mutate(V201200 = ifelse(V201200 == 99 & V201201 == 1, 2,
+                                                                    ifelse(V201200 == 99 & V201201 == 2, 6,
+                                                                           ifelse(V201200 == 99 & V201201 == 3, 4, V201200))))
+political_spectrum <- political_spectrum |> mutate(V201200 = ifelse(V201200 == 99, -1, V201200))
+
+political_spectrum <- political_spectrum |> mutate(V201202 = ifelse(V201202 == -9 | V201202 == -8, -1, V201202))
+political_spectrum <- political_spectrum |> mutate(V201203 = ifelse(V201203 == -9 | V201203 == -8 | V201203 == -4, -1, V201203))
+
+political_spectrum <- political_spectrum |> mutate(V201075x = ifelse(V201075x == "Inapplicable", "Independent", V201075x))
+political_spectrum$V201075x <- factor(political_spectrum$V201075x, levels = c("Independent", "Republican","Democrat"))
+political_spectrum$PolSciKnow <- factor(political_spectrum$PolSciKnow, levels = c("High", "Medium", "Low"))
+
+political_spectrum_biden <- political_spectrum |>
+  group_by(V201075x, PolSciKnow, V201200, V201202) |>
+  summarize(Count = n(), .groups = "keep")
+political_spectrum_biden <- political_spectrum_biden |>
+  group_by(PolSciKnow, V201200, V201202) |>
+  slice_max(Count, n = 1, with_ties = FALSE) |> ungroup()
+political_spectrum_biden <- political_spectrum_biden |>
+  mutate(Count = ifelse(V201075x == "Republican", -Count, 
+                        ifelse(V201075x == "Independent", 0, Count)))
+
+political_spectrum_trump <- political_spectrum |>
+  group_by(V201075x, PolSciKnow, V201200, V201203) |>
+  summarize(Count = n(), .groups = "keep")
+political_spectrum_trump <- political_spectrum_trump |>
+  group_by(PolSciKnow, V201200, V201203) |>
+  slice_max(Count, n = 1, with_ties = FALSE) |> ungroup()
+political_spectrum_trump <- political_spectrum_trump |>
+  mutate(Count = ifelse(V201075x == "Republican", -Count, 
+                        ifelse(V201075x == "Independent", 0, Count)))
+```
+
+```{r, fig.width=20, fig.height=10}
+x_labels = factor(c("No Answer", "Extremely\nLiberal", "Liberal", "Slightly\nLiberal", "Moderate", "Slightly\nConservative", "Conservative", "Extremely\nConservative"))
+y_labels = factor(c("No Answer", "Extremely\nLiberal", "Liberal", "Slightly\nLiberal", "Moderate", "Slightly\nConservative", "Conservative", "Extremely\nConservative"))
+
+biden <- ggplot(political_spectrum_biden, aes(x=V201200, y=V201202, fill = Count)) +
+  geom_tile(color = "white") +
+  facet_wrap(~PolSciKnow, ncol=1) +
+  scale_fill_gradient2(low = "red",mid = "#f9f9f9",high = "blue",midpoint = 0, name = "Party Prevalence\n(Counts)") +
+  scale_x_continuous(breaks = c(-1, 1, 2, 3, 4, 5, 6, 7), labels = x_labels) + 
+  scale_y_continuous(breaks = c(-1, 1, 2, 3, 4, 5, 6, 7), labels = y_labels) +
+  labs(y = "Joe Biden's Position", title = "Respondent v. Joe Biden") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position="none")
+
+trump <- ggplot(political_spectrum_trump, aes(x=V201200, y=V201203, fill = Count)) +
+  geom_tile(color = "white") +
+  facet_wrap(~PolSciKnow, ncol=1) +
+  scale_fill_gradient2(low = "red",mid = "#f9f9f9",high = "blue",midpoint = 0, name = "Party Prevalence\n(Counts)") +
+  scale_x_continuous(breaks = c(-1, 1, 2, 3, 4, 5, 6, 7), labels = x_labels) + 
+  scale_y_continuous(breaks = c(-1, 1, 2, 3, 4, 5, 6, 7), labels = y_labels) +
+  labs(y = "Donald Trump's Position", title = "Respondent v. Donald Trump") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+(biden + trump) + plot_layout(guides = "collect", axis_title="collect") +
+  plot_annotation(title = "Political Compass by Political Science Knowledge") &
+  labs(x = "Respondent's Position") &
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+A political spectrum scale (a single-axis case of the Political Compass) is arguably the most common metric used in the classification of individuals on the left-right liberal-conservative spectrum. In the case of a two-party system (like the one in the United States), it usually links these two parties to the opposite ends in a relatively straightforward and direct manner. Nevertheless, there are certain known biases associated with this type of mapping, one of which is the lack of independence in the sense that the reported results are highly sensitive to the (political) partiality of inputs. How is this reflected in the population of American Voters?
+
+Consider these six heatmaps which on the x-axes position the Respondent on the said scale (self-reported) and on the y-axes position Joe Biden and Donald Trump thereupon, respectively. If a given combination was more likely to be reported by Democrat-voting Respondents, the tile has been colored blue, and it was colored red if the combination was more likely reported by Republican-voting Respondents. Light gray tiles represent combinations which were either not frequently reported by either party or were associated with Independents and Undeclared voters. Everything has been also faceted by the level of Political Science Knowledge.
+
+First, the vertical spread of values suggests that voters are divided in relation to positioning the presidential candidate on the political spectrum scale. The horizontal spread of values reflects the distribution of the electorate, split by party affiliation. It is highly evident that at all levels of Political Science Knowledge, there is never a match between the darkest blue and darkest red tile on the same horizontal level per heatmap. In other words, Democrat-voting and Republican-voting Respondents never agree on the position of the opposite party candidate. Both tend to exaggerate the opponent's position, i.e., Republicans would say that Joe Biden is extremely liberal, while Democrats would just call Joe Biden liberal, and Democrats would say that Donald Trump is extremely conservative, while Democrats would just call Donald Trump conservative. In other words, the direction seems to be same, but the level of extremeness is not so anymore. This effect does not seem to diminish when one control for the level of Political Science Knowledge.
+
+Then, while the Democratic-voters seem to be a bit more spread out in both directions (illustrated with the 9-tile blue squares that can be seen in almost any map), the Republican-voters are more homogeneous and clearly centered around the darkest tile, creating more of a cross formation. Any further deviations are likely suggestive of uninformation, noise, or unseriousness in filling the questionnaire. For example, the prevalence of blue in the bottom-left heatmap around the self:conservative, Donald Trump:extremely liberal combination is highly unjustified and incomprehensible in relation to reality as it means that one might not have understood the functioning of the political spectrum scale. The same holds true for the bottom-right heatmap exhibiting traces of red for self:liberal, Joe Biden:extremely conservative combination. In other words, there are numbers of people who do not differentiate between Liberalism and Conservatism, which, fortunately, seems to be filtered quite well when one applies the Political Science Knowledge thresholds.
+
+## Are voters aware of the economic performance indicators at the national level?
+
+```{r}
+cleveland_1 <- alluvials |> dplyr::select(V200001, V201075x, PolSciKnow)
+cleveland_2 <- winners |> dplyr::select(V200001, V201014b)
+cleveland_3 <- df |> dplyr::select(V200001, V201327x, V201333x)
+
+cleveland <- full_join(cleveland_1, cleveland_2, by='V200001')
+cleveland <- full_join(cleveland, cleveland_3, by='V200001')
+
+cleveland <- cleveland |> drop_na()
+
+cleveland$V201075x <- factor(cleveland$V201075x, levels = c("Democrat", "Republican"))
+
+cleveland$PolSciKnow <- factor(cleveland$PolSciKnow, levels = c("High", "Medium", "Low"))
+
+cleveland <- cleveland |> filter(V201327x != -2)
+cleveland <- cleveland |> mutate(V201327x = ifelse(V201327x == 1 | V201327x == 2, "Better",
+                                                   ifelse(V201327x == 3, "Same", "Worse")))
+
+cleveland <- cleveland |> filter(V201333x != -2)
+cleveland <- cleveland |> mutate(V201333x = ifelse(V201333x == 1 | V201333x == 2, "Better",
+                                                   ifelse(V201333x == 3, "Same", "Worse")))
+
+cleveland$V201014b <- factor(cleveland$V201014b, levels = c("Alabama","Alaska","Arizona","Arkansas",
+                                                            "California","Colorado","Connecticut","Delaware",
+                                                            "DC","Florida","Georgia","Hawaii","Idaho","Illinois",
+                                                            "Indiana","Iowa","Kansas","Kentucky","Louisiana",
+                                                            "Maine","Maryland","Massachusetts","Michigan",
+                                                            "Minnesota","Mississippi","Missouri","Montana",
+                                                            "Nebraska","Nevada","New Hampshire","New Jersey",
+                                                            "New Mexico","New York","North Carolina","North Dakota",
+                                                            "Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island",
+                                                            "South Carolina","South Dakota","Tennessee","Texas","Utah",
+                                                            "Vermont","Virginia","Washington","West Virginia",
+                                                            "Wisconsin","Wyoming"))
+```
+
+```{r, fig.width=10, fig.height=20}
+cleveland_economy_know <- cleveland |>
+  group_by(PolSciKnow, V201075x, V201014b, V201327x) |>
+  summarize(Proportion = n(), .groups = "keep")
+
+cleveland_economy_know <- cleveland_economy_know |>
+  group_by(V201014b, V201075x, PolSciKnow, V201327x) |>
+  summarize(Total = sum(Proportion), .groups = "drop") |>
+  group_by(V201014b, V201075x, PolSciKnow) |>
+  mutate(Prop = Total / sum(Total)) |>
+  ungroup()
+
+averages <- cleveland_economy_know |>
+  group_by(V201075x, PolSciKnow, V201327x) |>
+  summarize(Average = mean(Prop), .groups = "drop")
+cleveland_economy_know <- cleveland_economy_know |>
+  left_join(averages, by = c("V201075x", "PolSciKnow", "V201327x"))
+
+high_know <- cleveland_economy_know |> filter(PolSciKnow == "High")
+mid_know <- cleveland_economy_know |> filter(PolSciKnow == "Medium")
+low_know <- cleveland_economy_know |> filter(PolSciKnow == "Low")
+
+high_graph <- ggplot(high_know, aes(x=Prop, y=fct_rev(V201014b), color=V201075x)) +
+  geom_point() +
+  geom_vline(aes(xintercept = Average, color = V201075x)) +
+  facet_wrap(~V201327x) +
+  scale_color_manual(values = c("Democrat" = "blue", "Republican" = "red")) +
+  labs(title = "High Level of Political Science Knowledge")
+
+mid_graph <- ggplot(mid_know, aes(x=Prop, y=fct_rev(V201014b), color=V201075x)) +
+  geom_point() +
+  facet_wrap(~V201327x) +
+  geom_vline(aes(xintercept = Average, color = V201075x)) +
+  scale_color_manual(values = c("Democrat" = "blue", "Republican" = "red")) +
+  labs(title = "Medium Level of Political Science Knowledge")
+
+low_graph <- ggplot(low_know, aes(x=Prop, y=fct_rev(V201014b), color=V201075x)) +
+  geom_point() +
+  facet_wrap(~V201327x) +
+  geom_vline(aes(xintercept = Average, color = V201075x)) +
+  scale_color_manual(values = c("Democrat" = "blue", "Republican" = "red")) +
+  labs(title = "Low Level of Political Science Knowledge")
+
+(high_graph / mid_graph / low_graph) + plot_layout(guides = "collect", axis_title="collect") +
+  plot_annotation(title = "In the past year, has the Nation’s Economy Gotten Better, Stayed About the Same, or Gotten Worse?") &
+  labs(x = "Proportion", y="", color = "Party Affiliation") &
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+A number of the most important economic indicators, such as the rate of economy's growth or the rate of unemployment, are said to be extremely influential on the outcome of any elections. To begin with, consider these Cleveland Dot Plots which report the proportion of Respondents, split by their preferred party and current state of residence, answering better, same, or worse to the question on the nation's economy performance in the past 12 months, i.e., the period between November 2019 and November 2020. The correct answer can be either "worse" or "same" as the American GDP has fallen by a very small fraction as a result of the COVID-19 pandemic.
+
+On a technical note, the reported results are linearly dependent, which means that the proportions for each horizontal line shall add exactly to 1. Thus, any two facets directly inform on the third one. Moreover, for the simplicity of analyses, the vertical lines represent the party averages across all states.
+
+Democrats are, on average, more likely than Republicans to say that the economy has gotten worse. At the same time, Republicans are, on average, more likely than Democrats to say that the economy has stayed the same. While for the "worse" case, the difference between the average proportion stays more less the same across all possible levels of Political Science Knowledge, it is no longer the case for the "same" case, also considered vertically across plots. There, the higher the level of Political Science Knowledge of Republican-voters, the further away they stray from the average for the Democrats claiming similarly at the same level of Political Science Knowledge cognizance. This is as expected with the hypothesis that the higher one's level of Political Science Knowledge is (which is likely related to the level of Economic Knowledge), the better knowledge one would have on the economic indicators in the country. 
+
+At the same time, one always seems to exercise caution in praising or criticizing the incumbent president, who might be directly responsible for the nation's economic performance, which is true especially if they belong to the same party. Thus, the Republican-Democrat difference for the "worse" case is not as striking as the growing inter-party divergence in the "same" case. In other words, Republicans with a higher level of Political Science Knowledge are slightly more likely to more overtly give an impartial opinion on the economy compared to Republicans with a lower level of said knowledge, while still staying on the more cautious side when it comes to criticizing the contemporaneous president (Donald Trump).
+
+```{r, fig.width=10, fig.height=20}
+cleveland_unemployment_know <- cleveland |>
+  group_by(PolSciKnow, V201075x, V201014b, V201333x) |>
+  summarize(Proportion = n(), .groups = "keep")
+
+cleveland_unemployment_know <- cleveland_unemployment_know |>
+  group_by(V201014b, V201075x, PolSciKnow, V201333x) |>
+  summarise(Total = sum(Proportion), .groups = "drop") |>
+  group_by(V201014b, V201075x, PolSciKnow) |>
+  mutate(Prop = Total / sum(Total)) |>
+  ungroup()
+
+averages_u <- cleveland_unemployment_know |>
+  group_by(V201075x, PolSciKnow, V201333x) |>
+  summarize(Average = mean(Prop), .groups = "drop")
+cleveland_unemployment_know <- cleveland_unemployment_know |>
+  left_join(averages_u, by = c("V201075x", "PolSciKnow", "V201333x"))
+
+high_know_u <- cleveland_unemployment_know |> filter(PolSciKnow == "High")
+mid_know_u <- cleveland_unemployment_know |> filter(PolSciKnow == "Medium")
+low_know_u <- cleveland_unemployment_know |> filter(PolSciKnow == "Low")
+
+high_graph_u <- ggplot(high_know_u, aes(x=Prop, y=fct_rev(V201014b), color=V201075x)) +
+  geom_point() +
+  facet_wrap(~V201333x) +
+  geom_vline(aes(xintercept = Average, color = V201075x)) +
+  scale_color_manual(values = c("Democrat" = "blue", "Republican" = "red")) +
+  labs(title = "High Level of Political Science Knowledge")
+
+mid_graph_u <- ggplot(mid_know_u, aes(x=Prop, y=fct_rev(V201014b), color=V201075x)) +
+  geom_point() +
+  facet_wrap(~V201333x) +
+  geom_vline(aes(xintercept = Average, color = V201075x)) +
+  scale_color_manual(values = c("Democrat" = "blue", "Republican" = "red")) +
+  labs(title = "Medium Level of Political Science Knowledge")
+
+low_graph_u <- ggplot(low_know_u, aes(x=Prop, y=fct_rev(V201014b), color=V201075x)) +
+  geom_point() +
+  facet_wrap(~V201333x) +
+  geom_vline(aes(xintercept = Average, color = V201075x)) +
+  scale_color_manual(values = c("Democrat" = "blue", "Republican" = "red")) +
+  labs(title = "Low Level of Political Science Knowledge")
+
+(high_graph / mid_graph / low_graph) + plot_layout(guides = "collect", axis_title="collect") +
+  plot_annotation(title = "In the past year, has the Nation's Unemployment Gotten Better, Stayed About the Same, or Gotten Worse?") &
+  labs(x = "Proportion", y="", color = "Party Affiliation") &
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+How about the second important indicator, i.e., unemployment? Here the answer is undeniably "worse" as the COVID-19 pandemic has spiked the unemployment rate from about 3% to almost 15% in the considered period (again, November 2019 to November 2020). Yet, there does not seem to be any different trend compared to the plot reporting the same metrics but on the Nation's economy. Once more, Democrats are more likely to report "worse" at all levels of Political Science Knowledge, and Republicans diverge from Democrats when it comes to reporting "same" and controlling for the level of Political Science Knowledge.
+
+Setting aside the discussion on the difference between the "true" and reported answers on these economic indicators, the two Cleveland Dot Plots appear to quite succinctly summarize a number of findings as well as hindrances characterizing this project. For example, while the "same" instance Republican divergence case might hint at a higher level of information among the voters with a higher level of Political Science Knowledge, it is impossible to say just from these plots whether the reported differences in averages are a result of emotionally galvanized electorates, or the lack of actual knowledge. Similarly, one can only hypothesize whether Democrats were truly aware of the worse-performing economic indicators or if they more prevalently chose "worse" in a way to signal their dissatisfaction with the then-currently incumbent president belonging to the opposite party.
+
+On a final note, data granularity here has been stretched to its maximum, in the sense that 312 groups were created to split the over 8,000 subjects into their respective Political Science Knowledge - Party Affiliation - State of Residence bin. Thus, a careful reader might notice that in some states there are no Respondents falling into one of the possible groups; for example, all Democrat-voting individuals in Alabama with a High Political Science Knowledge claim that the Nation's unemployment has gotten worse, resulting in a perfect prediction. Finding such trends, however, requires a line-by-line analysis that might be eclipsed by the inclusion of vertical lines reporting the averages for a simplified subset of 18 groups. Moreover, the robustness of such an approach might not be entirely accurate as it would raise questions on the considered sample size.
