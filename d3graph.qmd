@@ -69,11 +69,7 @@
           </div>
           <div class="question">
               <label for="party-select">What is your party affiliation? (Republicans or Democrats)</label>
-              <select id="party-select">
-                  <option value="" disabled selected>Select your party</option>
-                  <option value="republicans">Republicans</option>
-                  <option value="democrats">Democrats</option>
-              </select>
+              <select id="party-senate"></select>
           </div>
           <button id="submit-btn">Submit Answers</button>
           <div class="result" id="result"></div>
