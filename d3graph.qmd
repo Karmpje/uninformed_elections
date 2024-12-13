@@ -67,9 +67,10 @@
               <label for="geer-case">5. When did the Supreme Court decide on Geer v. Connecticut?</label>
               <input type="number" id="geer-case" placeholder="Answer in number">
           </div>
+          </div>
           <div class="question">
               <label for="party-select">What is your party affiliation? (Republicans or Democrats)</label>
-              <select id="party-senate"></select>
+              <select id="party-select"></select>
           </div>
           <button id="submit-btn">Submit Answers</button>
           <div class="result" id="result"></div>
