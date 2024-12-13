@@ -1,7 +1,7 @@
 # Results
 
 ```{r}
-# Setting up the environment
+# Setting up the environment 
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
